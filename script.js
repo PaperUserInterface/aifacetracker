@@ -143,6 +143,9 @@ function drawFaceBoxes(results) {
     if (det.landmarks && det.landmarks.length > 0) {
       const landmarks = det.landmarks;
       
+      // Draw facial expression tracking
+      drawFacialExpressions(landmarks);
+      
       // Get all x and y coordinates from landmarks
       const xs = landmarks.map(lm => lm.x);
       const ys = landmarks.map(lm => lm.y);
@@ -161,8 +164,6 @@ function drawFaceBoxes(results) {
       const y = yMin * overlay.height;
       const w = width * overlay.width;
       const h = height * overlay.height;
-      
-      console.log('Using landmarks - Canvas coords:', { x, y, w, h });
       
       // Draw rectangle around face
       ctx.strokeStyle = faceColor;
@@ -188,15 +189,11 @@ function drawFaceBoxes(results) {
       let width = box.width ?? 0;
       let height = box.height ?? 0;
 
-      console.log('Using bounding box - normalized:', { xMin, yMin, width, height });
-
       // Mirror horizontally and convert to canvas coordinates
       const x = (1 - xMin - width) * overlay.width;
       const y = yMin * overlay.height;
       const w = width * overlay.width;
       const h = height * overlay.height;
-
-      console.log('Using bounding box - Canvas coords:', { x, y, w, h });
 
       // Draw rectangle around face
       ctx.strokeStyle = faceColor;
@@ -213,6 +210,108 @@ function drawFaceBoxes(results) {
       ctx.fillText('Face', x + 6, Math.max(20, y - 10));
     }
   });
+}
+
+function drawFacialExpressions(landmarks) {
+  if (!landmarks || landmarks.length < 6) return;
+  
+  // MediaPipe Face Detection provides 6 key landmarks:
+  // 0: right eye, 1: left eye, 2: nose tip, 3: mouth center, 4: right ear, 5: left ear
+  
+  const expressionColors = {
+    eyes: '#00ff88',      // Green
+    mouth: '#4ecdc4',     // Teal
+    nose: '#ffd93d',      // Yellow
+    ears: '#ff6b6b'       // Red
+  };
+
+  // Convert landmarks to screen coordinates
+  const points = landmarks.map((point) => ({
+    x: (1 - point.x) * overlay.width,
+    y: point.y * overlay.height,
+  }));
+
+  // Draw facial feature landmarks
+  function drawFeatureLandmark(pointIndex, color, label, size = 6) {
+    if (!points[pointIndex]) return;
+    
+    const point = points[pointIndex];
+    
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    
+    // Draw landmark circle
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Draw label
+    ctx.font = '12px Segoe UI';
+    ctx.fillText(label, point.x + 10, point.y - 10);
+    
+    ctx.restore();
+  }
+
+  // Draw individual facial features
+  drawFeatureLandmark(0, expressionColors.eyes, 'R-EYE', 4);
+  drawFeatureLandmark(1, expressionColors.eyes, 'L-EYE', 4);
+  drawFeatureLandmark(2, expressionColors.nose, 'NOSE', 4);
+  drawFeatureLandmark(3, expressionColors.mouth, 'MOUTH', 5);
+  drawFeatureLandmark(4, expressionColors.ears, 'R-EAR', 3);
+  drawFeatureLandmark(5, expressionColors.ears, 'L-EAR', 3);
+
+  // Draw connections between key features
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 1;
+  
+  // Eye to eye connection
+  if (points[0] && points[1]) {
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    ctx.lineTo(points[1].x, points[1].y);
+    ctx.stroke();
+  }
+  
+  // Nose to mouth connection
+  if (points[2] && points[3]) {
+    ctx.beginPath();
+    ctx.moveTo(points[2].x, points[2].y);
+    ctx.lineTo(points[3].x, points[3].y);
+    ctx.stroke();
+  }
+  
+  ctx.restore();
+
+  // Simple expression detection based on landmark positions
+  if (points.length >= 4) {
+    const eyeDistance = Math.abs(points[0].x - points[1].x);
+    const noseToMouthDistance = Math.abs(points[2].y - points[3].y);
+    
+    // Display expression status
+    ctx.font = '14px Segoe UI';
+    let yOffset = 50;
+    
+    // Simple "expression active" indicator
+    if (eyeDistance > 50) {
+      ctx.fillStyle = expressionColors.eyes;
+      ctx.fillText('👁️ EYES ACTIVE', 10, yOffset);
+      yOffset += 20;
+    }
+    
+    if (noseToMouthDistance < 30) {
+      ctx.fillStyle = expressionColors.mouth;
+      ctx.fillText('😊 EXPRESSION', 10, yOffset);
+      yOffset += 20;
+    }
+    
+    // Show landmark count
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`📍 ${landmarks.length} LANDMARKS`, 10, yOffset);
+  }
 }
 
 function drawHands(results) {
